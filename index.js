@@ -31,48 +31,13 @@ function SegwitDepositUtils (options) {
   return self
 }
 
-SegwitDepositUtils.prototype.bip44 = function (xpub, path) {
-  let self = this
-  let node = bitcoin.HDNode.fromBase58(xpub, self.options.network)
-  let nodeDerivation = node.derive(0).derive(path)
-  let redeemScript = bitcoin.script.witnessPubKeyHash.output.encode(bitcoin.crypto.hash160(nodeDerivation.getPublicKeyBuffer()))
-  let scriptPubKey = bitcoin.script.scriptHash.output.encode(bitcoin.crypto.hash160(redeemScript))
-  return bitcoin.address.fromOutputScript(scriptPubKey, self.options.network)
-}
-
-SegwitDepositUtils.prototype.getPrivateKey = function (xprv, path) {
-  let self = this
-  if (!xprv) throw new Error('Xprv is null. Bad things will happen to you.')
-  // create the hd wallet
-  const node = bitcoin.HDNode.fromBase58(xprv, self.options.network)
-  let child = node.derivePath("m/44'/0'/0'/0")
-  let nodeDerivation = child.derive(0).derive(path)
-  return nodeDerivation.keyPair.toWIF()
-}
-
-SegwitDepositUtils.prototype.privateToPublic = function (privateKey) {
-  let self = this
-  var keyPair = bitcoin.ECPair.fromWIF(privateKey, self.options.network)
-  let redeemScript = bitcoin.script.witnessPubKeyHash.output.encode(bitcoin.crypto.hash160(keyPair.getPublicKeyBuffer()))
-  let scriptPubKey = bitcoin.script.scriptHash.output.encode(bitcoin.crypto.hash160(redeemScript))
-  return bitcoin.address.fromOutputScript(scriptPubKey, self.options.network)
-}
-
-SegwitDepositUtils.prototype.generateNewKeys = function (entropy) {
-  let self = this
-  var root = bitcoin.HDNode.fromSeedHex(entropy, self.options.network)
-  return {
-    xprv: root.toBase58(),
-    xpub: self.getXpubFromXprv(root.toBase58())
-  }
-}
-
-SegwitDepositUtils.prototype.getXpubFromXprv = function (xprv) {
-  let self = this
-  let node = bitcoin.HDNode.fromBase58(xprv, self.options.network)
-  let child = node.derivePath("m/44'/0'/0'/0")
-  // let derivedPubKey = key.derive("m/44'/60'/0'/0").hdPublicKey
-  return child.neutered().toBase58()
+SegwitDepositUtils.prototype.getAddress = (node, network) => {
+    const wif = node.toWIF()
+    const keyPair = bitcoin.ECPair.fromWIF(wif, network)
+    let { address } = bitcoin.payments.p2sh({
+      redeem: bitcoin.payments.p2pkh({ pubkey: keyPair.publicKey })
+    })
+    return address
 }
 
 SegwitDepositUtils.prototype.getBalance = function (address, done) {
@@ -87,10 +52,10 @@ SegwitDepositUtils.prototype.getBalance = function (address, done) {
   })
 }
 
-SegwitDepositUtils.prototype.getUTXOs = function (xpub, path, done) {
+SegwitDepositUtils.prototype.getUTXOs = function (node, network, done) {
   let self = this
-  let address = self.bip44(xpub, path)
-  // console.log('sweeping ', address)
+  let address = self.getAddress(node, network)
+  console.log('sweeping ', address)
   let url = self.options.insightUrl + 'addr/' + address + '/utxo'
   request.get({json: true, url: url}, function (err, response, body) {
     if (!err && response.statusCode !== 200) {
@@ -191,7 +156,7 @@ SegwitDepositUtils.prototype.sweepTransaction = function (xpub, xprv, path, to, 
   })
 }
 
-SegwitDepositUtils.prototype.getTransaction = function (xprv, path, to, amount, utxo, feePerByte) {
+SegwitDepositUtils.prototype.getTransaction = function (node, network, to, amount, utxo, feePerByte) {
   let self = this
   const txb = new bitcoin.TransactionBuilder(self.options.network)
   let totalBalance = 0
@@ -206,8 +171,9 @@ SegwitDepositUtils.prototype.getTransaction = function (xprv, path, to, amount, 
   let txfee = estimateTxFee(feePerByte, utxo.length, 1, true)
   if (txfee < MIN_RELAY_FEE) txfee = MIN_RELAY_FEE
   if (amount > (totalBalance - txfee)) return new Error('Balance too small!' + totalBalance + ' ' + txfee)
-  txb.addOutput(to, amount)
-  let keyPair = bitcoin.HDNode.fromBase58(xprv, self.options.network).derivePath("m/44'/0'/0'/0").derive(0).derive(path).keyPair
+  txb.addOutput(to, amount - txfee)
+  const wif = node.toWIF()
+  const keyPair = bitcoin.ECPair.fromWIF(wif, network)
   let redeemScript = bitcoin.script.witnessPubKeyHash.output.encode(bitcoin.crypto.hash160(keyPair.getPublicKeyBuffer()))
   for (let i = 0; i < utxo.length; i++) {
     txb.sign(i,
@@ -220,9 +186,9 @@ SegwitDepositUtils.prototype.getTransaction = function (xprv, path, to, amount, 
   return { signedTx: txb.build().toHex(), txid: txb.build().getId() }
 }
 
-SegwitDepositUtils.prototype.transaction = function (xpub, xprv, path, to, amount, feePerByte, done) {
+SegwitDepositUtils.prototype.transaction = function (node, coin, to, amount, feePerByte, done) {
   let self = this
-  self.getUTXOs(xpub, path, function (err, utxo) {
+  self.getUTXOs(node, coin.network, function (err, utxo) {
     if (err) return done(err)
     let signedTx = self.getTransaction(xprv, path, to, amount, utxo, feePerByte)
     self.broadcastTransaction(signedTx, done)
