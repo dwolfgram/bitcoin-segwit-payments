@@ -191,6 +191,44 @@ SegwitDepositUtils.prototype.sweepTransaction = function (xpub, xprv, path, to, 
   })
 }
 
+SegwitDepositUtils.prototype.getTransaction = function (xprv, path, to, amount, utxo, feePerByte) {
+  let self = this
+  const txb = new bitcoin.TransactionBuilder(self.options.network)
+  let totalBalance = 0
+  if (utxo.length === 0) {
+    return new Error('no UTXOs')
+  }
+  utxo.forEach(function (spendable) {
+    totalBalance += spendable.satoshis
+    txb.addInput(spendable.txid, spendable.vout) // alice1 unspent
+  })
+  if (!feePerByte) feePerByte = self.options.feePerByte
+  let txfee = estimateTxFee(feePerByte, utxo.length, 1, true)
+  if (txfee < MIN_RELAY_FEE) txfee = MIN_RELAY_FEE
+  if (amount > (totalBalance - txfee)) return new Error('Balance too small!' + totalBalance + ' ' + txfee)
+  txb.addOutput(to, amount)
+  let keyPair = bitcoin.HDNode.fromBase58(xprv, self.options.network).derivePath("m/44'/0'/0'/0").derive(0).derive(path).keyPair
+  let redeemScript = bitcoin.script.witnessPubKeyHash.output.encode(bitcoin.crypto.hash160(keyPair.getPublicKeyBuffer()))
+  for (let i = 0; i < utxo.length; i++) {
+    txb.sign(i,
+      keyPair,
+      redeemScript,
+      null, // Null for simple Segwit
+      utxo[i].satoshis
+    )
+  }
+  return { signedTx: txb.build().toHex(), txid: txb.build().getId() }
+}
+
+SegwitDepositUtils.prototype.transaction = function (xpub, xprv, path, to, amount, feePerByte, done) {
+  let self = this
+  self.getUTXOs(xpub, path, function (err, utxo) {
+    if (err) return done(err)
+    let signedTx = self.getTransaction(xprv, path, to, amount, utxo, feePerByte)
+    self.broadcastTransaction(signedTx, done)
+  })
+}
+
 /**
  * Estimate size of transaction a certain number of inputs and outputs.
  * This function is based off of ledger-wallet-webtool/src/TransactionUtils.js#estimateTransactionSize
