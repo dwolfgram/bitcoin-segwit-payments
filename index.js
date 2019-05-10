@@ -45,7 +45,7 @@ SegwitDepositUtils.prototype.getBalance = function(address, done) {
   let url = self.options.insightUrl + 'addr/' + address
   request.get({ json: true, url: url }, (err, response, body) => {
     if (!err && response.statusCode !== 200) {
-      return done(new Error('Unable to get balance from ' + url))
+      return done('Unable to get balance from ' + url)
     } else {
       done(null, { balance: body.balance, unconfirmedBalance: body.unconfirmedBalance })
     }
@@ -57,11 +57,11 @@ SegwitDepositUtils.prototype.getUTXOs = function(node, network, done) {
   let address = self.getAddress(node, network)
   //console.log('getting utxos:', address)
   let url = self.options.insightUrl + 'addr/' + address + '/utxo'
-  request.get({ json: true, url: url }, err, response, body => {
+  request.get({ json: true, url: url }, function(err, response, body) {
     if (!err && response.statusCode !== 200) {
-      return done(new Error('Unable to get UTXOs from ' + url))
+      return done('Unable to get UTXOs from ' + url)
     } else if (body.length === 0) {
-      return done(new Error('Unable to get UTXOs from ' + url))
+      return done('This address has no unspent outputs ' + url)
     } else {
       let cleanUTXOs = []
       body.forEach(function(utxo) {
@@ -113,7 +113,7 @@ SegwitDepositUtils.prototype.broadcastTransaction = function(txObject, done, ret
         self.broadcastTransaction(txObject, done, self.options.backupBroadcastUrl, body)
       } else {
         // Second attempt failed
-        done(new Error('unable to broadcast. Some debug info: ' + body.toString() + ' ---- ' + originalResponse.toString()))
+        done('unable to broadcast. Some debug info: ' + body.toString() + ' ---- ' + originalResponse.toString())
       }
     }
   })
@@ -217,6 +217,16 @@ function estimateTxFee (satPerByte, inputsCount, outputsCount, handleSegwit) {
   const { min, max } = estimateTxSize(inputsCount, outputsCount, handleSegwit)
   const mean = Math.ceil((min + max) / 2)
   return mean * satPerByte
+}
+
+SegwitDepositUtils.prototype.getFee = function(node, network, done) {
+  let self = this
+  this.getUTXOs(node, network, (err, utxo) => {
+    if (!err) {
+      return done(null, estimateTxFee(feePerByte, utxo.length, 1, true))
+    }
+    return done(err)
+  })
 }
 
 module.exports = SegwitDepositUtils
