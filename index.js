@@ -40,74 +40,46 @@ SegwitDepositUtils.prototype.getAddress = (node, network) => {
     return address
 }
 
-SegwitDepositUtils.prototype.getBalance = function (address, done) {
+SegwitDepositUtils.prototype.getBalance = (address, done) => {
   let self = this
   let url = self.options.insightUrl + 'addr/' + address
-  request.get({json: true, url: url}, function (err, response, body) {
+  request.get({ json: true, url: url }, (err, response, body) => {
     if (!err && response.statusCode !== 200) {
       return done(new Error('Unable to get balance from ' + url))
     } else {
-      done(null, {balance: body.balance, unconfirmedBalance: body.unconfirmedBalance})
+      done(null, { balance: body.balance, unconfirmedBalance: body.unconfirmedBalance })
     }
   })
 }
 
-SegwitDepositUtils.prototype.getUTXOs = function (node, network, done) {
+SegwitDepositUtils.prototype.getUTXOs = node, network, done => {
   let self = this
   let address = self.getAddress(node, network)
-  console.log('sweeping ', address)
+  //console.log('getting utxos:', address)
   let url = self.options.insightUrl + 'addr/' + address + '/utxo'
-  request.get({json: true, url: url}, function (err, response, body) {
+  request.get({ json: true, url: url }, err, response, body => {
     if (!err && response.statusCode !== 200) {
       return done(new Error('Unable to get UTXOs from ' + url))
     } else if (body.length === 0) {
       return done(new Error('Unable to get UTXOs from ' + url))
     } else {
       let cleanUTXOs = []
-      body.forEach(function (utxo) {
+      body.forEach(utxo => {
         delete utxo['confirmations']
         delete utxo['height']
         delete utxo['ts']
         cleanUTXOs.push(utxo)
       })
-      console.log('TESTNET ENABLED: Clipping UTXO length to 2 for test purposes')
       if (self.options.network === bitcoin.networks.testnet) {
+        console.log('TESTNET ENABLED: Clipping UTXO length to 2 for test purposes')
         cleanUTXOs = cleanUTXOs.slice(0, 2)
       }
       done(null, cleanUTXOs)
     }
   })
 }
-SegwitDepositUtils.prototype.getSweepTransaction = function (xprv, path, to, utxo, feePerByte) {
-  let self = this
-  const txb = new bitcoin.TransactionBuilder(self.options.network)
-  let totalBalance = 0
-  if (utxo.length === 0) {
-    return new Error('no UTXOs')
-  }
-  utxo.forEach(function (spendable) {
-    totalBalance += spendable.satoshis
-    txb.addInput(spendable.txid, spendable.vout) // alice1 unspent
-  })
-  if (!feePerByte) feePerByte = self.options.feePerByte
-  let txfee = estimateTxFee(feePerByte, utxo.length, 1, true)
-  if (txfee < MIN_RELAY_FEE) txfee = MIN_RELAY_FEE
-  if ((totalBalance - txfee) < txfee) return new Error('Balance too small to sweep!' + totalBalance + ' ' + txfee)
-  txb.addOutput(to, totalBalance - txfee)
-  let keyPair = bitcoin.HDNode.fromBase58(xprv, self.options.network).derivePath("m/44'/0'/0'/0").derive(0).derive(path).keyPair
-  let redeemScript = bitcoin.script.witnessPubKeyHash.output.encode(bitcoin.crypto.hash160(keyPair.getPublicKeyBuffer()))
-  for (let i = 0; i < utxo.length; i++) {
-    txb.sign(i,
-      keyPair,
-      redeemScript,
-      null, // Null for simple Segwit
-      utxo[i].satoshis
-    )
-  }
-  return { signedTx: txb.build().toHex(), txid: txb.build().getId() }
-}
 
-SegwitDepositUtils.prototype.broadcastTransaction = function (txObject, done, retryUrl, originalResponse) {
+SegwitDepositUtils.prototype.broadcastTransaction = txObject, done, retryUrl, originalResponse => {
   let self = this
   let textBody = '{"rawtx":"' + txObject.signedTx + '"}'
   const broadcastHeaders = {
@@ -132,7 +104,7 @@ SegwitDepositUtils.prototype.broadcastTransaction = function (txObject, done, re
     headers: broadcastHeaders,
     body: textBody
   }
-  request(options, function (error, response, body) {
+  request(options, error, response, body => {
     if (!error && response.statusCode === 200) {
       txObject.broadcasted = true
       done(null, txObject)
@@ -147,34 +119,26 @@ SegwitDepositUtils.prototype.broadcastTransaction = function (txObject, done, re
   })
 }
 
-SegwitDepositUtils.prototype.sweepTransaction = function (xpub, xprv, path, to, feePerByte, done) {
+SegwitDepositUtils.prototype.getTransaction = (node, network, to, amount, utxo, feePerByte) => {
   let self = this
-  self.getUTXOs(xpub, path, function (err, utxo) {
-    if (err) return done(err)
-    let signedTx = self.getSweepTransaction(xprv, path, to, utxo, feePerByte)
-    self.broadcastTransaction(signedTx, done)
-  })
-}
-
-SegwitDepositUtils.prototype.getTransaction = function (node, network, to, amount, utxo, feePerByte) {
-  let self = this
-  const txb = new bitcoin.TransactionBuilder(self.options.network)
+  const txb = new bitcoin.TransactionBuilder(network)
   let totalBalance = 0
   if (utxo.length === 0) {
     return new Error('no UTXOs')
   }
-  utxo.forEach(function (spendable) {
+  utxo.forEach(spendable => {
     totalBalance += spendable.satoshis
     txb.addInput(spendable.txid, spendable.vout) // alice1 unspent
   })
   if (!feePerByte) feePerByte = self.options.feePerByte
   let txfee = estimateTxFee(feePerByte, utxo.length, 1, true)
   if (txfee < MIN_RELAY_FEE) txfee = MIN_RELAY_FEE
-  if (amount > (totalBalance - txfee)) return new Error('Balance too small!' + totalBalance + ' ' + txfee)
+  if ((amount + txfee) > totalBalance) return new Error('Balance too small!' + totalBalance + ' ' + txfee)
   txb.addOutput(to, amount - txfee)
   const wif = node.toWIF()
   const keyPair = bitcoin.ECPair.fromWIF(wif, network)
-  let redeemScript = bitcoin.script.witnessPubKeyHash.output.encode(bitcoin.crypto.hash160(keyPair.getPublicKeyBuffer()))
+  const pubKeyHash = bitcoin.crypto.ripemd160(bitcoin.crypto.sha256(keyPair.publicKey)).toString('hex')
+  const redeemScript = bitcoin.script.fromASM(`OP_DUP OP_HASH160 ${pubKeyHash} OP_EQUALVERIFY OP_CHECKSIG`)
   for (let i = 0; i < utxo.length; i++) {
     txb.sign(i,
       keyPair,
@@ -186,11 +150,11 @@ SegwitDepositUtils.prototype.getTransaction = function (node, network, to, amoun
   return { signedTx: txb.build().toHex(), txid: txb.build().getId() }
 }
 
-SegwitDepositUtils.prototype.transaction = function (node, coin, to, amount, feePerByte, done) {
+SegwitDepositUtils.prototype.transaction = (node, coin, to, amount, feePerByte, done) => {
   let self = this
-  self.getUTXOs(node, coin.network, function (err, utxo) {
+  self.getUTXOs(node, coin.network, (err, utxo) => {
     if (err) return done(err)
-    let signedTx = self.getTransaction(xprv, path, to, amount, utxo, feePerByte)
+    let signedTx = self.getTransaction(node, coin.network, to, amount, utxo, feePerByte)
     self.broadcastTransaction(signedTx, done)
   })
 }
@@ -199,7 +163,7 @@ SegwitDepositUtils.prototype.transaction = function (node, coin, to, amount, fee
  * Estimate size of transaction a certain number of inputs and outputs.
  * This function is based off of ledger-wallet-webtool/src/TransactionUtils.js#estimateTransactionSize
  */
-function estimateTxSize (inputsCount, outputsCount, handleSegwit) {
+const estimateTxSize = (inputsCount, outputsCount, handleSegwit) => {
   var maxNoWitness,
     maxSize,
     maxWitness,
