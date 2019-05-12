@@ -40,7 +40,7 @@ SegwitDepositUtils.prototype.getAddress = function(node, network) {
     return address
 }
 
-SegwitDepositUtils.prototype.getBalance = function(address, done) {
+SegwitDepositUtils.prototype.getBalance = function(address, options, done) {
   let self = this
   let url = self.options.insightUrl + 'addr/' + address
   request.get({ json: true, url: url }, (err, response, body) => {
@@ -150,11 +150,11 @@ SegwitDepositUtils.prototype.getTransaction = function(node, network, to, amount
   return { signedTx: txb.build().toHex(), txid: txb.build().getId() }
 }
 
-SegwitDepositUtils.prototype.transaction = function(node, coin, to, amount, feePerByte, done) {
+SegwitDepositUtils.prototype.transaction = function(node, coin, to, amount, options, done) {
   let self = this
   self.getUTXOs(node, coin.network, (err, utxo) => {
     if (err) return done(err)
-    let signedTx = self.getTransaction(node, coin.network, to, amount, utxo, feePerByte)
+    let signedTx = self.getTransaction(node, coin.network, to, amount, utxo, options.feePerByte)
     self.broadcastTransaction(signedTx, done)
   })
 }
@@ -219,9 +219,9 @@ function estimateTxFee (satPerByte, inputsCount, outputsCount, handleSegwit) {
   return mean * satPerByte
 }
 
-SegwitDepositUtils.prototype.getFee = function(node, network, done) {
+SegwitDepositUtils.prototype.getFee = function(node, network, options, done) {
   let self = this
-  this.getUTXOs(node, network, (err, utxo) => {
+  self.getUTXOs(node, network, (err, utxo) => {
     if (!err) {
       return done(null, estimateTxFee(feePerByte, utxo.length, 1, true))
     }
