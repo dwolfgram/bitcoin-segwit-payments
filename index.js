@@ -1,5 +1,6 @@
 const bitcoin = require('bitcoinjs-lib')
 const request = require('request')
+const sb = require('satoshi-bitcoin')
 const MIN_RELAY_FEE = 1000
 const DEFAULT_SAT_PER_BYTE = 10
 function SegwitDepositUtils (options) {
@@ -121,6 +122,7 @@ SegwitDepositUtils.prototype.broadcastTransaction = function(txObject, done, ret
 
 SegwitDepositUtils.prototype.getTransaction = function(node, network, to, amount, utxo, feePerByte) {
   let self = this
+  amount = sb.toSatoshi(amount)
   const txb = new bitcoin.TransactionBuilder(network)
   let totalBalance = 0
   if (utxo.length === 0) {
