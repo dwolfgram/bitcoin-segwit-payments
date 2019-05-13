@@ -32,12 +32,12 @@ function SegwitDepositUtils (options) {
 }
 
 SegwitDepositUtils.prototype.getAddress = function(node, network) {
-    const wif = node.toWIF()
-    const keyPair = bitcoin.ECPair.fromWIF(wif, network)
-    let { address } = bitcoin.payments.p2sh({
-      redeem: bitcoin.payments.p2pkh({ pubkey: keyPair.publicKey })
-    })
-    return address
+  const wif = node.toWIF()
+  const keyPair = bitcoin.ECPair.fromWIF(wif, network)
+  let { address } = bitcoin.payments.p2sh({
+    redeem: bitcoin.payments.p2pkh({ pubkey: keyPair.publicKey })
+  })
+  return address
 }
 
 SegwitDepositUtils.prototype.getBalance = function(address, options = {}, done) {
@@ -221,6 +221,7 @@ function estimateTxFee (satPerByte, inputsCount, outputsCount, handleSegwit) {
 
 SegwitDepositUtils.prototype.getFee = function(node, network, options = {}, done) {
   let self = this
+  const feePerByte = options.feePerByte || self.options.feePerByte
   self.getUTXOs(node, network, (err, utxo) => {
     if (!err) {
       return done(null, estimateTxFee(feePerByte, utxo.length, 1, true))
