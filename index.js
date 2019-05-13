@@ -104,7 +104,7 @@ SegwitDepositUtils.prototype.broadcastTransaction = function(txObject, done, ret
     headers: broadcastHeaders,
     body: textBody
   }
-  request(options, error, response, body => {
+  request(options, (error, response, body) => {
     if (!error && response.statusCode === 200) {
       txObject.broadcasted = true
       done(null, txObject)
