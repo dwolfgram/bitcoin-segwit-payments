@@ -133,7 +133,7 @@ SegwitDepositUtils.prototype.getTransaction = function(node, network, to, amount
   if (!feePerByte) feePerByte = self.options.feePerByte
   let txfee = estimateTxFee(feePerByte, utxo.length, 1, true)
   if (txfee < MIN_RELAY_FEE) txfee = MIN_RELAY_FEE
-  if ((amount + txfee) > totalBalance) return new Error('Balance too small!' + totalBalance + ' ' + txfee)
+  if ((amount - txfee) > totalBalance) return new Error('Balance too small!' + totalBalance + ' ' + txfee)
   txb.addOutput(to, amount - txfee)
   const wif = node.toWIF()
   const keyPair = bitcoin.ECPair.fromWIF(wif, network)
