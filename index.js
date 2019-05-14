@@ -1,3 +1,4 @@
+const axios = require('axios')
 const bitcoin = require('bitcoinjs-lib')
 const request = require('request')
 const sb = require('satoshi-bitcoin')
@@ -159,6 +160,32 @@ SegwitDepositUtils.prototype.transaction = function(node, coin, to, amount, opti
     let signedTx = self.getTransaction(node, coin.network, to, amount, utxo, options.feePerByte)
     self.broadcastTransaction(signedTx, done)
   })
+}
+
+SegwitDepositUtils.prototype.getTxHistory = async function(address, done) {
+  let self = this
+  try {
+    const response = await axios.get(`${self.options.explorerUrl}/txs`, {
+      params: {
+        address: address
+      }
+    })
+    const history = response.data.txs.map(tx => {
+      const { txid, vout = [{}], vin = [{}], fees, valueIn, valueOut, time } = tx
+      return ({ 
+        txid: txid, 
+        sendAddress: vout[0].addresses ? vout[0].addresses[0] : undefined,
+        receiveAddress: vin[0].addr,
+        fee: fees,
+        amountSent: valueIn,
+        amountReceived: valueOut,
+        date: time
+      })
+    })
+    return done(null, history)
+  } catch (err) {
+    return done(`unable to fetch transaction history: ${err}`)
+  }
 }
 
 /**
