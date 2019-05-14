@@ -165,7 +165,7 @@ SegwitDepositUtils.prototype.transaction = function(node, coin, to, amount, opti
 SegwitDepositUtils.prototype.getTxHistory = async function(address, done) {
   let self = this
   try {
-    const response = await axios.get(`${self.options.explorerUrl}/txs`, {
+    const response = await axios.get(`${self.options.explorerUrl}txs`, {
       params: {
         address: address
       }
