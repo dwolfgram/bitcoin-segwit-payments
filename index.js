@@ -1,9 +1,9 @@
-const axios = require('axios')
+const axios = require('axios').default
 const bitcoin = require('bitcoinjs-lib')
 const request = require('request')
 const sb = require('satoshi-bitcoin')
 const MIN_RELAY_FEE = 1000
-const DEFAULT_SAT_PER_BYTE = 10
+const DEFAULT_SAT_PER_BYTE = 50
 function SegwitDepositUtils (options) {
   if (!(this instanceof SegwitDepositUtils)) return new SegwitDepositUtils(options)
   let self = this
@@ -153,10 +153,23 @@ SegwitDepositUtils.prototype.getTransaction = function(node, network, to, amount
   return { signedTx: txb.build().toHex(), txid: txb.build().getId() }
 }
 
+const getCurrentBTCFeesPerByte = async() => {
+  try {
+    const fees = await axios.get('https://bitcoinfees.earn.com/api/v1/fees/recommended')
+    return fees.data.halfHourFee
+  } catch (err) {
+    return self.options.feePerByte
+  }
+}
+
 SegwitDepositUtils.prototype.transaction = function(node, coin, to, amount, options = {}, done) {
   let self = this
-  self.getUTXOs(node, coin.network, (err, utxo) => {
+  self.getUTXOs(node, coin.network, async (err, utxo) => {
     if (err) return done(err)
+    if (!options.feePerByte) {
+      const fee = await getCurrentBTCFeesPerByte()
+      options.feePerByte = fee
+    }
     let signedTx = self.getTransaction(node, coin.network, to, amount, utxo, options.feePerByte)
     self.broadcastTransaction(signedTx, done)
   })
@@ -248,9 +261,13 @@ function estimateTxFee (satPerByte, inputsCount, outputsCount, handleSegwit) {
   return mean * satPerByte
 }
 
-SegwitDepositUtils.prototype.getFee = function(node, network, options = {}, done) {
+SegwitDepositUtils.prototype.getFee = async function(node, network, options = {}, done) {
   let self = this
-  const feePerByte = options.feePerByte || self.options.feePerByte
+  let feePerByte = options.feePerByte
+  if (!feePerByte) {
+    const fee = await getCurrentBTCFeesPerByte()
+    feePerByte = fee
+  }
   self.getUTXOs(node, network, (err, utxo) => {
     if (!err) {
       return done(null, estimateTxFee(feePerByte, utxo.length, 1, true))
