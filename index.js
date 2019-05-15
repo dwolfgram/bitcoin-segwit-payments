@@ -37,8 +37,9 @@ SegwitDepositUtils.prototype.getAddress = function(node, network) {
   const wif = node.toWIF()
   const keyPair = bitcoin.ECPair.fromWIF(wif, network)
   let { address } = bitcoin.payments.p2sh({
-    redeem: bitcoin.payments.p2pkh({ pubkey: keyPair.publicKey })
+    redeem: bitcoin.payments.p2wpkh({ pubkey: keyPair.publicKey })
   })
+  console.log(address)
   return address
 }
 
@@ -140,14 +141,16 @@ SegwitDepositUtils.prototype.getTransaction = function(node, network, to, amount
   txb.addOutput(to, amount - txfee)
   const wif = node.toWIF()
   const keyPair = bitcoin.ECPair.fromWIF(wif, network)
-  const pubKeyHash = bitcoin.crypto.ripemd160(bitcoin.crypto.sha256(keyPair.publicKey)).toString('hex')
-  const redeemScript = bitcoin.script.fromASM(`OP_DUP OP_HASH160 ${pubKeyHash} OP_EQUALVERIFY OP_CHECKSIG`)
+  const p2sh = bitcoin.payments.p2sh({
+    redeem: bitcoin.payments.p2wpkh({ pubkey: keyPair.publicKey })
+  })
   for (let i = 0; i < utxo.length; i++) {
     txb.sign(i,
       keyPair,
-      redeemScript,
+      p2sh.redeem.output,
       null, // Null for simple Segwit
-      utxo[i].satoshis
+      utxo[i].satoshis,
+      p2sh.redeem.witness
     )
   }
   return { signedTx: txb.build().toHex(), txid: txb.build().getId() }
