@@ -9,7 +9,7 @@ function SegwitDepositUtils (options) {
   let self = this
   self.options = Object.assign({}, options || {})
   if (!self.options.insightUrl) {
-    self.options.insightUrl = 'https://blockexplorer.com/api/'
+    self.options.insightUrl = 'https://insight.bitpay.com/api/'
     console.log('WARN: Using default bitcoin block explorer. It is highly suggested you set one yourself!', self.options.insightUrl)
   }
 
