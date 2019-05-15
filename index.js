@@ -39,7 +39,6 @@ SegwitDepositUtils.prototype.getAddress = function(node, network) {
   let { address } = bitcoin.payments.p2sh({
     redeem: bitcoin.payments.p2wpkh({ pubkey: keyPair.publicKey })
   })
-  console.log(address)
   return address
 }
 
