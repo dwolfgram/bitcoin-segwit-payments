@@ -1,4 +1,3 @@
-node_modules
 .DS_Store
 npm-debug.log
 newrelic_agent.log
@@ -8,4 +7,3 @@ dumps
 /.gtm/
 tools/logstash-forwarder.crt
 dump
-node_modules
