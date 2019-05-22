@@ -40,7 +40,9 @@
   },
   "dependencies": {
     "axios": "^0.18.0",
+    "bip32-utils": "^0.11.1",
     "bitcoinjs-lib": "^5.0.3",
+    "cb-blockr": "^3.1.2",
     "hd-wallet": "^8.2.3",
     "request": "^2.87.0",
     "satoshi-bitcoin": "^1.0.4"
