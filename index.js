@@ -1,9 +1,11 @@
 const axios = require('axios').default
+const hdWallet = require('./utils/hd-wallet').default
 const bitcoin = require('bitcoinjs-lib')
 const request = require('request')
 const sb = require('satoshi-bitcoin')
 const MIN_RELAY_FEE = 1000
 const DEFAULT_SAT_PER_BYTE = 50
+
 function SegwitDepositUtils (options) {
   if (!(this instanceof SegwitDepositUtils)) return new SegwitDepositUtils(options)
   let self = this
@@ -52,6 +54,31 @@ SegwitDepositUtils.prototype.getBalance = function(address, options = {}, done) 
       done(null, { balance: body.balance, unconfirmedBalance: body.unconfirmedBalance })
     }
   })
+}
+
+SegwitDepositUtils.prototype.sortUtxos = function(utxoList) {
+  const matureList = []
+  const immatureList = []
+  utxoList.forEach((utxo) => {
+    if (utxo.confirmations >= 6) {
+      matureList.push(utxo)
+    } else {
+      immatureList.push(utxo)
+    }
+  })
+  matureList.sort((a, b) => a.value - b.value) // Ascending order by value
+  immatureList.sort((a, b) => b.confirmations - a.confirmations) // Descending order by confirmations
+  return matureList.concat(immatureList)
+}
+
+SegwitDepositUtils.prototype.discoverAccount = async function(xpub, network) {
+  try {
+    const account = await hdWallet.discoverAccount(xpub, network)
+    console.log(account)
+    return account
+  } catch (err) {
+    console.log(err)
+  }
 }
 
 SegwitDepositUtils.prototype.getUTXOs = function(node, network, done) {
