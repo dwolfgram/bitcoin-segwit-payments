@@ -1,5 +1,5 @@
 const axios = require('axios').default
-const hdWallet = require('./utils/hd-wallet').default
+const hdWallet = require('./utils/hd-wallet')
 const bitcoin = require('bitcoinjs-lib')
 const request = require('request')
 const sb = require('satoshi-bitcoin')
