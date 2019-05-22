@@ -4,10 +4,10 @@ const {
   UtxoInfo: BaseUtxoInfo, AccountInfo: BaseAccountInfo,
 } = hdWallet
 
-const xpubWasmFile = require('hd-wallet/lib/fastxpub/fastxpub.wasm?file')
-const XpubWorker = require('hd-wallet/lib/fastxpub/fastxpub?worker')
-const SocketWorker = require('hd-wallet/lib/socketio-worker/inside?worker')
-const DiscoveryWorker = require('hd-wallet/lib/discovery/worker/inside?worker')
+const xpubWasmFile = require('hd-wallet/lib/fastxpub/fastxpub.wasm')
+const XpubWorker = require('hd-wallet/lib/fastxpub/fastxpub')
+const SocketWorker = require('hd-wallet/lib/socketio-worker/inside')
+const DiscoveryWorker = require('hd-wallet/lib/discovery/worker/inside')
 
 // setting up workers
 const socketWorkerFactory = () => new SocketWorker()
