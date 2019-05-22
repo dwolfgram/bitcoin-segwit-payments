@@ -1,12 +1,13 @@
-import {
+const hdWallet = require('hd-wallet')
+const {
   WorkerDiscovery, BitcoreBlockchain, AccountLoadStatus,
-  UtxoInfo as BaseUtxoInfo, AccountInfo as BaseAccountInfo,
-} from 'hd-wallet'
+  UtxoInfo: BaseUtxoInfo, AccountInfo: BaseAccountInfo,
+} = hdWallet
 
-import xpubWasmFile from 'hd-wallet/lib/fastxpub/fastxpub.wasm?file'
-import XpubWorker from 'hd-wallet/lib/fastxpub/fastxpub?worker'
-import SocketWorker from 'hd-wallet/lib/socketio-worker/inside?worker'
-import DiscoveryWorker from 'hd-wallet/lib/discovery/worker/inside?worker'
+const xpubWasmFile = require('hd-wallet/lib/fastxpub/fastxpub.wasm?file')
+const XpubWorker = require('hd-wallet/lib/fastxpub/fastxpub?worker')
+const SocketWorker = require('hd-wallet/lib/socketio-worker/inside?worker')
+const DiscoveryWorker = require('hd-wallet/lib/discovery/worker/inside?worker')
 
 // setting up workers
 const socketWorkerFactory = () => new SocketWorker()
