@@ -42,6 +42,6 @@ function discoverAccount(xpub, network, onUpdate) {
     })
 }
 
-export default {
+module.exports = {
   discoverAccount
 }
