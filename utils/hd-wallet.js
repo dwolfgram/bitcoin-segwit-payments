@@ -11,7 +11,7 @@ const XpubFile = require('hd-wallet/lib/fastxpub/fastxpub')
 const SocketWorker = require('hd-wallet/lib/socketio-worker/inside')
 const DiscoveryWorker = require('hd-wallet/lib/discovery/worker/inside')
 
-const socketWorkerFactory = () => new TinyWorker(SocketWorker)
+const socketWorkerFactory = () => new SocketWorker()
 const discoveryWorkerFactory = () => new TinyWorker(DiscoveryWorker)
 const xpubWorker = new TinyWorker(XpubFile)
 const xpubFilePromise = require('util').promisify(fs.readFile)(xpubWasmFile)
