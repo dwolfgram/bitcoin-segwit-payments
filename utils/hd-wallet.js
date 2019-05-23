@@ -5,23 +5,24 @@ const {
 const TinyWorker = require('tiny-worker')
 const fetch = require('node-fetch')
 const fs = require('fs')
+const { Worker, isMainThread } = require('worker_threads');
 
-const xpubWasmFile = require('hd-wallet/lib/fastxpub/fastxpub.wasm')
-const XpubFile = require('hd-wallet/lib/fastxpub/fastxpub')
-const SocketWorker = require('hd-wallet/lib/socketio-worker/inside')
-const DiscoveryWorker = require('hd-wallet/lib/discovery/worker/inside')
+let socketWorkerFactory
+let discoveryWorkerFactory
+let xpubWorker
+if (isMainThread) {
+  socketWorkerFactory = () => new TinyWorker('./node_modules/hd-wallet/lib/socketio-worker/inside.js')
+  discoveryWorkerFactory = () => new TinyWorker('./node_modules/hd-wallet/lib/discovery/worker/inside/index.js')
+  xpubWorker = new TinyWorker('./node_modules/hd-wallet/lib/fastxpub/fastxpub.js')
+}
 
-const socketWorkerFactory = () => new SocketWorker()
-const discoveryWorkerFactory = () => new TinyWorker(DiscoveryWorker)
-const xpubWorker = new TinyWorker(XpubFile)
-const xpubFilePromise = require('util').promisify(fs.readFile)(xpubWasmFile)
+const xpubFilePromise = require('util').promisify(fs.readFile)('./node_modules/hd-wallet/lib/fastxpub/fastxpub.wasm')
   .then(buf => Array.from(buf))
 
 function discoverAccount(xpub, network, onUpdate) {
   const endPoints = ['https://btc.faa.st','https://btc1.trezor.io','https://insight.bitpay.com, ']
   const blockchain = new BitcoreBlockchain(endPoints, socketWorkerFactory)
   const discovery = new WorkerDiscovery(discoveryWorkerFactory, xpubWorker, xpubFilePromise, blockchain)
-
   return Promise.resolve()
     .then(() => {
       const segwit = 'p2sh'
