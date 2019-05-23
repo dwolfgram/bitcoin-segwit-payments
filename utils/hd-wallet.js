@@ -5,17 +5,17 @@ const {
 const TinyWorker = require('tiny-worker')
 const fetch = require('node-fetch')
 const fs = require('fs')
-const { Worker, isMainThread } = require('worker_threads');
+const { Worker, isMainThread } = require('worker_threads')
 
 let socketWorkerFactory
 let discoveryWorkerFactory
 let xpubWorker
 if (isMainThread) {
   socketWorkerFactory = () => new TinyWorker('./node_modules/hd-wallet/lib/socketio-worker/inside.js')
-  discoveryWorkerFactory = () => new TinyWorker('./node_modules/hd-wallet/lib/discovery/worker/inside/index.js')
+  discoveryWorkerFactory = () => new Worker('./node_modules/hd-wallet/lib/discovery/worker/inside/index.js')
   xpubWorker = new TinyWorker('./node_modules/hd-wallet/lib/fastxpub/fastxpub.js')
 }
-
+console.log('disc', discoveryWorkerFactory)
 const xpubFilePromise = require('util').promisify(fs.readFile)('./node_modules/hd-wallet/lib/fastxpub/fastxpub.wasm')
   .then(buf => Array.from(buf))
 
