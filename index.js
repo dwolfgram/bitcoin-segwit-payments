@@ -74,11 +74,10 @@ SegwitDepositUtils.prototype.sortUtxos = function(utxoList) {
 SegwitDepositUtils.prototype.discoverAccount = async function(xpub, network, done) {
   try {
     const account = await hdWallet.discoverAccount(xpub, network)
-    console.log(account)
     return done(null, account)
   } catch (err) {
     console.log(err)
-    return('error discovering account: ' + err)
+    return done('error discovering account: ' + err)
   }
 }
 
