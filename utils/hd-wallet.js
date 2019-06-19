@@ -2,7 +2,7 @@ const {
   WorkerDiscovery, BitcoreBlockchain, AccountLoadStatus,
   UtxoInfo: BaseUtxoInfo, AccountInfo: BaseAccountInfo,
 } = require('hd-wallet')
-const TinyWorker = require('react-native-workers')
+const TinyWorker = require('tiny-worker')
 const fetch = require('node-fetch')
 const fs = require('fs')
 
@@ -21,7 +21,7 @@ const xpubFilePromise = require('util').promisify(fs.readFile)('./node_modules/h
   .then(buf => Array.from(buf))
 
 function discoverAccount(xpub, network, onUpdate) {
-  const endPoints = ['https://btc.faa.st','https://btc1.trezor.io','https://insight.bitpay.com, ']
+  const endPoints = ['https://btc.faa.st','https://btc1.trezor.io','https://insight.bitpay.com']
   const blockchain = new BitcoreBlockchain(endPoints, socketWorkerFactory)
   const discovery = new WorkerDiscovery(discoveryWorkerFactory, xpubWorker, xpubFilePromise, blockchain)
   return Promise.resolve()
