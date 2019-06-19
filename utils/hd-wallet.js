@@ -2,7 +2,7 @@ const {
   WorkerDiscovery, BitcoreBlockchain, AccountLoadStatus,
   UtxoInfo: BaseUtxoInfo, AccountInfo: BaseAccountInfo,
 } = require('hd-wallet')
-const TinyWorker = require('tiny-worker')
+const TinyWorker = require('react-native-workers')
 const fetch = require('node-fetch')
 const fs = require('fs')
 
