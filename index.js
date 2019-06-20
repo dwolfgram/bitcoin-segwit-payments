@@ -10,7 +10,7 @@ function SegwitDepositUtils (options) {
   let self = this
   self.options = Object.assign({}, options || {})
   if (!self.options.insightUrl) {
-    self.options.insightUrl = 'https://insight.bitpay.com/api/'
+    self.options.insightUrl = 'https://btc.faa.st/insight-api/'
     console.log('WARN: Using default bitcoin block explorer. It is highly suggested you set one yourself!', self.options.insightUrl)
   }
 
@@ -70,48 +70,21 @@ SegwitDepositUtils.prototype.sortUtxos = function(utxoList) {
   return matureList.concat(immatureList)
 }
 
-SegwitDepositUtils.prototype.getUTXOs = function(node, network, done) {
-  let self = this
-  let address = self.getAddress(node, network)
-  //console.log('getting utxos:', address)
-  let url = self.options.insightUrl + 'addr/' + address + '/utxo'
-  request.get({ json: true, url: url }, function(err, response, body) {
-    if (!err && response.statusCode !== 200) {
-      return done('Unable to get UTXOs from ' + url)
-    } else if (body.length === 0) {
-      return done('This address has no unspent outputs ' + url)
-    } else {
-      let cleanUTXOs = []
-      body.forEach(function(utxo) {
-        delete utxo['confirmations']
-        delete utxo['height']
-        delete utxo['ts']
-        cleanUTXOs.push(utxo)
-      })
-      if (self.options.network === bitcoin.networks.testnet) {
-        console.log('TESTNET ENABLED: Clipping UTXO length to 2 for test purposes')
-        cleanUTXOs = cleanUTXOs.slice(0, 2)
-      }
-      done(null, cleanUTXOs)
-    }
-  })
-}
-
 SegwitDepositUtils.prototype.broadcastTransaction = function(txObject, done, retryUrl, originalResponse) {
   let self = this
   let textBody = '{"rawtx":"' + txObject.signedTx + '"}'
   const broadcastHeaders = {
     'pragma': 'no-cache',
     'cookie': '__cfduid=d365c2b104e8c0e947ad9991de7515e131528318303',
-    'origin': 'https://blockexplorer.com',
+    'origin': 'https://btc.faa.st/insight-api',
     'accept-encoding': 'gzip, deflate, br',
     'accept-language': 'en-US,en;q=0.9,fr;q=0.8,es;q=0.7',
     'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/67.0.3396.99 Safari/537.36',
     'content-type': 'application/json;charset=UTF-8',
     'accept': 'application/json, text/plain, */*',
     'cache-control': 'no-cache',
-    'authority': 'blockexplorer.com',
-    'referer': 'https://blockexplorer.com/tx/send'
+    'authority': 'btc.faa.st',
+    'referer': 'https://btc.faa.st/tx/send'
   }
   let url
   if (retryUrl) url = retryUrl
@@ -137,20 +110,27 @@ SegwitDepositUtils.prototype.broadcastTransaction = function(txObject, done, ret
   })
 }
 
-SegwitDepositUtils.prototype.getTransaction = function(node, network, to, amount, options) {
+SegwitDepositUtils.prototype.getTransaction = async function(node, network, to, amount, options) {
   let self = this
   const { account = {}, dustThreshold = 546 } = options
   const { utxos, changeIndex, changeAddresses } = account
   let changeAddress = changeAddresses[changeIndex]
   const sortedUtxos = self.sortUtxos(utxos)
   const minFeePerByte = self.options.feePerByte
-  let fee = self.getFee(node, network, { utxos: sortedUtxos, outputCount: 2 })
-  const minTxFee = self.getFee(node, network, { utxos: sortedUtxos, feePerByte: minFeePerByte, outputCount: 2 })
+  let fee
+  let minTxFee
+  try {
+    fee = await self.getFee(node, network, { utxos: sortedUtxos, outputCount: 2 })
+    minTxFee =  await self.getFee(node, network, { utxos: sortedUtxos, feePerByte: minFeePerByte, outputCount: 2 })
+  } catch (err) {
+    // there should never be an error, b/c backup uses default
+    console.log(err)
+  }
   if (fee < minTxFee) {
     fee = minTxFee
   }
-  let amountWithFee = amount + fee
   amount = sb.toSatoshi(amount)
+  let amountWithFee = amount + fee
   const txb = new bitcoin.TransactionBuilder(network)
   if (sortedUtxos.length === 0) {
     return new Error('no UTXOs')
@@ -158,35 +138,39 @@ SegwitDepositUtils.prototype.getTransaction = function(node, network, to, amount
   let totalBalance = 0
   sortedUtxos.forEach(function(spendable) {
     totalBalance += spendable.value
+    console.log(spendable.transactionHash)
     txb.addInput(spendable.transactionHash, spendable.index) // alice1 unspent
   })
+  console.log('totalBalance', totalBalance)
   if ((amount - fee) > totalBalance) return new Error('Balance too small!' + totalBalance + ' ' + fee)
-
   const change = totalBalance - amountWithFee
+  console.log('change', change)
   if (change > dustThreshold) {
     txb.addOutput(changeAddress, change)
   } else {
     fee += change
   }
+  console.log('sendAmount', amount - fee)
   txb.addOutput(to, amount - fee)
+
   const wif = node.toWIF()
   const keyPair = bitcoin.ECPair.fromWIF(wif, network)
   const p2sh = bitcoin.payments.p2sh({
     redeem: bitcoin.payments.p2wpkh({ pubkey: keyPair.publicKey })
-  })
+  }) 
   for (let i = 0; i < sortedUtxos.length; i++) {
     txb.sign(i,
       keyPair,
       p2sh.redeem.output,
       null, // Null for simple Segwit
       sortedUtxos[i].value,
-      p2sh.redeem.witness
+      // p2sh.redeem.witness
     )
   }
   return { signedTx: txb.build().toHex(), txid: txb.build().getId() }
 }
 
-const getCurrentBTCFeesPerByte = async() => {
+const getCurrentBTCFeesPerByte = async () => {
   try {
     const fees = await axios.get('https://bitcoinfees.earn.com/api/v1/fees/recommended')
     return fees.data.halfHourFee
@@ -195,9 +179,10 @@ const getCurrentBTCFeesPerByte = async() => {
   }
 }
 
-SegwitDepositUtils.prototype.transaction = function(node, coin, to, amount, options = {}, done) {
+SegwitDepositUtils.prototype.transaction = async function(node, coin, to, amount, options = {}, done) {
   let self = this
-  let signedTx = self.getTransaction(node, coin.network, to, amount, options)
+  let signedTx = await self.getTransaction(node, coin.network, to, amount, options)
+  console.log(signedTx)
   self.broadcastTransaction(signedTx, done)
 }
 
@@ -288,25 +273,24 @@ function estimateTxFee (satPerByte, inputsCount, outputsCount, handleSegwit) {
   return mean * satPerByte
 }
 
-SegwitDepositUtils.prototype.getFee = async function(node, network, options = {}, done) {
-  let self = this
-  let feePerByte = options.feePerByte
-  let utxos = options.utxos
-  let outputCount = options.outputCount || 1
-  if (!feePerByte) {
-    const fee = await getCurrentBTCFeesPerByte()
-    feePerByte = fee
-  }
-  if (!utxos) {
-    self.getUTXOs(node, network, (err, utxo) => {
-      if (!err) {
-        return done(null, estimateTxFee(feePerByte, utxo.length, outputCount, true))
-      }
-      return done(err)
-    })
-  } else {
-    done(null, estimateTxFee(feePerByte, utxos.length, outputCount, true))
-  }
+SegwitDepositUtils.prototype.getFee = async function(node, network, options = {}) {
+  return new Promise(async (resolve, reject) => {
+    let self = this
+    let feePerByte = options.feePerByte
+    let utxos = options.utxos
+    let outputCount = options.outputCount || 1
+    if (!utxos) {
+      reject('Should discover account, and provide UTXOS from that')
+    }
+    try {
+      const fee = feePerByte || await getCurrentBTCFeesPerByte()
+      console.log(estimateTxFee(fee, utxos.length, outputCount, true))
+      feePerByte = fee
+      return resolve(estimateTxFee(feePerByte, utxos.length, outputCount, true))
+    } catch (err) {
+      return resolve(estimateTxFee(self.options.feePerByte, utxos.length, outputCount, true))
+    }
+  })
 }
 
 module.exports = SegwitDepositUtils
